@@ -1,0 +1,9 @@
+{
+  "employee_id": "string, required, unique",
+  "full_name": "string, required",
+  "email": "string, optional, valid email",
+  "phone": "string, optional, normalized",
+  "date_of_birth": "YYYY-MM-DD, optional",
+  "joining_date": "YYYY-MM-DD, optional",
+  "department": "string, optional"
+}
