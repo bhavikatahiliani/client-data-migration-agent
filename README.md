@@ -1,7 +1,6 @@
 # Client Data Migration Agent
 
-A small AI-assisted migration agent built for the Forward Deployed
-Engineer take-home assignment.
+A small AI-assisted migration agent built.
 
 The application takes raw employee data from source files, maps it to a
 common target schema, cleans and validates the data, asks for human
