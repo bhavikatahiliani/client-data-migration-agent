@@ -1,6 +1,6 @@
 # Client Data Migration Agent
 
-A small AI-assisted migration agent built.
+A small AI-assisted migration agent built
 
 The application takes raw employee data from source files, maps it to a
 common target schema, cleans and validates the data, asks for human
@@ -26,6 +26,7 @@ API.
 - SQLAlchemy / database layer
 - HTML/CSS/JavaScript
 - REST API
+- Ollama for local LLM-based migration assistance
 - Open-source / AI-assisted components used for migration logic
 
 ## Project Structure
@@ -56,13 +57,55 @@ On macOS / Linux:
 source .venv/bin/activate
 ```
 
-### 3. Install dependencies
+### 3. Install Python dependencies
 
 ```bash
 pip install -r requirements.txt
 ```
 
-### 4. Run the application
+### 4. Install Ollama
+
+The migration agent uses Ollama to run the local LLM used for
+migration assistance.
+
+Install Ollama from:
+
+https://ollama.com/download
+
+After installation, start the Ollama service:
+
+```bash
+ollama serve
+```
+
+Keep Ollama running while using the application.
+
+### 5. Pull the required Ollama model
+
+Pull the model configured in the project:
+
+```bash
+ollama pull <MODEL_NAME>
+```
+
+Replace `<MODEL_NAME>` with the model name configured in the migration
+agent.
+
+You can check the locally available models using:
+
+```bash
+ollama list
+```
+
+The application expects Ollama to be available locally at:
+
+```text
+http://localhost:11434
+```
+
+### 6. Run the application
+
+From the project directory:
 
 ```bash
 python3 app.py
@@ -227,6 +270,9 @@ to exercise the cleaning, validation and human-review flow.
 This is a prototype intended to demonstrate the migration workflow.
 
 The target system is mocked and is not a production HR system.
+
+The application currently relies on a locally running Ollama instance
+for the LLM-based migration assistance.
 
 For a production deployment, I would add persistent target storage,
 authentication and authorization, background processing for larger
