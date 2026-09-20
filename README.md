@@ -1,132 +1,265 @@
-# AI Client Data Migration & Integration Agent
+# Client Data Migration Agent
 
-A small, customer-facing Flask prototype for migrating messy HR/CRM exports into a canonical employee schema. It combines deterministic data engineering with an open-source LLM (optional Ollama/Qwen) for semantic field mapping, explicit confidence thresholds, human escalation, mock target API integration, retry/rollback, and an audit trail.
+A small AI-assisted migration agent built for the Forward Deployed
+Engineer take-home assignment.
 
-## What it demonstrates
+The application takes raw employee data from source files, maps it to a
+common target schema, cleans and validates the data, asks for human
+input only when needed, and pushes the final records to a mock target
+API.
 
-- Multi-file CSV/XLSX ingestion and reconciliation
-- AI-assisted source → target mapping
-- Safe normalization: whitespace, casing, dates, emails, phones
-- Duplicate detection with deterministic keys + fuzzy similarity
-- Validation with bounded repair attempts
-- Human-in-the-loop escalation queue
-- Per-record mock target API push
-- Retry of failed records only
-- Rollback of a migration
-- Immutable-style audit events stored in SQLite
-- Optional Ollama/Qwen integration; deterministic fallback keeps the demo runnable without a local model
+## What it does
 
-## Run locally
+- Ingests employee data from source files
+- Handles different source column names
+- Maps source fields to a common employee schema
+- Cleans and normalizes safe values
+- Detects invalid or ambiguous records
+- Provides a human review flow
+- Pushes validated records to a mock target API
+- Supports retry and rollback
+- Maintains an audit trail of important actions
+
+## Tech Stack
+
+- Python
+- Flask
+- SQLAlchemy / database layer
+- HTML/CSS/JavaScript
+- REST API
+- Open-source / AI-assisted components used for migration logic
+
+## Project Structure
+
+```text
+agent/       Migration and transformation logic
+api/         Mock target API
+templates/   Web UI
+static/      CSS/static assets
+tests/       Automated tests
+data/        Sample input data
+app.py       Flask application entry point
+```
+
+## Setup
+
+### 1. Create a virtual environment
 
 ```bash
-python -m venv .venv
-source .venv/bin/activate        # Windows: .venv\\Scripts\\activate
+python3 -m venv .venv
+```
+
+### 2. Activate the virtual environment
+
+On macOS / Linux:
+
+```bash
+source .venv/bin/activate
+```
+
+### 3. Install dependencies
+
+```bash
 pip install -r requirements.txt
-python app.py
 ```
 
-Open http://127.0.0.1:5000
-
-### Optional open-source AI model
-
-Install Ollama and pull a model such as Qwen:
+### 4. Run the application
 
 ```bash
-ollama pull qwen2.5:3b
+python3 app.py
 ```
 
-Then:
+The Flask application will start locally. Open the local URL shown in
+the terminal.
+
+## Demo Flow
+
+A typical migration flow is:
+
+1. Upload the source files.
+2. Start the migration.
+3. Review the records prepared by the agent.
+4. Open an escalated record when the agent needs human input.
+5. Approve, correct, or reject the record.
+6. Push the approved records to the target.
+7. Review the migration result and audit trail.
+
+The demo also shows how a record can be corrected during human review
+before the final data is pushed to the target.
+
+## How the Migration Works
+
+The migration flow is intentionally split into a few simple stages:
+
+```text
+Source Files
+     |
+     v
+File Ingestion
+     |
+     v
+Field Mapping
+     |
+     v
+Cleaning & Normalization
+     |
+     v
+Validation
+     |
+     +----------------------+
+     |                      |
+     v                      v
+Confident Record       Needs Review
+     |                      |
+     v                      v
+Push to Target        Human Review
+                            |
+                     Approve / Correct / Reject
+                            |
+                            v
+                       Push to Target
+                            |
+                            v
+                       Audit Trail
+```
+
+The agent handles predictable transformations automatically and uses
+human review when it cannot confidently determine the correct action.
+
+## Target Integration
+
+The prototype uses a local mock target API instead of a real external
+HR system.
+
+The final canonical employee payload is sent to the mock API over HTTP.
+The mock API returns a success or failure response for each record.
+
+For example, a final employee record sent to the target can look like:
+
+```json
+{
+  "employee_id": "108",
+  "full_name": "Vikas Rao",
+  "email": "vikas@gmail.com",
+  "phone": null,
+  "date_of_birth": null,
+  "joining_date": null,
+  "department": null
+}
+```
+
+This keeps the prototype self-contained while still exercising the
+integration flow that would be used with a real target system.
+
+## Human-in-the-loop
+
+The agent is designed to avoid asking for human confirmation for every
+record.
+
+It handles deterministic and low-risk transformations automatically,
+such as common formatting and validation cases.
+
+Human review is used when the available information is not enough to
+make a confident decision. The reviewer can then approve the record,
+correct the value, or reject it.
+
+This keeps the human review step focused on cases where human judgement
+actually adds value.
+
+## Retry and Rollback
+
+The target integration handles failures at the record level.
+
+If the target API temporarily fails, the migration can retry the
+request. If a previously pushed record needs to be reverted, the
+rollback flow can be used.
+
+The migration result records the status of the target operation so that
+successful and failed records can be distinguished.
+
+## Audit Trail
+
+The application maintains an audit trail of important migration
+actions.
+
+The audit trail is intended to make it clear:
+
+- what happened to a record
+- what value was changed
+- when a human correction was made
+- why a record required review
+- whether the target push succeeded or failed
+- whether a retry or rollback was performed
+
+This gives an implementation consultant a readable history of the
+migration without needing to inspect application logs.
+
+## Testing
+
+The project includes tests covering the main migration flow and
+important edge cases, including:
+
+- field mapping
+- data validation
+- cleaning and normalization
+- migration behaviour
+- mock target API behaviour
+- retry and failure scenarios
+
+Additional manual test cases and edge cases are documented in:
+
+```text
+docs/TEST_CASES.md
+```
+
+## Sample Data
+
+Sample employee data is available under:
+
+```text
+data/
+```
+
+The sample data contains normal as well as inconsistent/invalid values
+to exercise the cleaning, validation and human-review flow.
+
+## Limitations
+
+This is a prototype intended to demonstrate the migration workflow.
+
+The target system is mocked and is not a production HR system.
+
+For a production deployment, I would add persistent target storage,
+authentication and authorization, background processing for larger
+migrations, stronger monitoring, and more configurable client-specific
+validation rules.
+
+## Documentation
+
+Additional documentation is available in the repository:
+
+- `WRITEUP.md` - approach and reasoning behind the agent's autonomy and
+  escalation boundary
+- `ARCHITECTURE.md` - high-level architecture and migration flow
+- `docs/TEST_CASES.md` - test cases and edge-case coverage
+
+## Running the Tests
+
+If the project is configured with pytest, tests can be run using:
 
 ```bash
-export OLLAMA_MODEL=qwen2.5:3b
-export OLLAMA_URL=http://localhost:11434/api/generate
-python app.py
+pytest
 ```
-
-If Ollama is unavailable, the agent uses the same confidence/escalation framework with a deterministic semantic mapper. This is intentional: the migration workflow must not fail merely because an optional model endpoint is unavailable.
 
 ## Demo
 
-1. Click **Load Demo Dataset**.
-2. Review the autonomous mapping/cleaning summary.
-3. Open **Needs Review**. The demo contains intentionally ambiguous `Start Date` data and a conflicting duplicate.
-4. Approve/correct/reject the escalations.
-5. Push to Target.
-6. Inspect per-record success/failure, retry failed records, and the audit log.
-7. Roll back the migration if desired.
+A short demo recording is included with the submission.
 
-## Autonomy policy
+The demo covers:
 
-The agent acts without human approval when a transformation is deterministic, low-risk, and above the confidence threshold. It escalates when semantic ambiguity can change business meaning, records conflict on important fields, a mandatory field remains invalid after bounded repair attempts, or the model output cannot be safely parsed.
-
-Suggested thresholds:
-
-- >= 0.90: autonomous mapping
-- 0.70–0.89: autonomous only if the mapping is corroborated by sample values and target-field constraints
-- < 0.70: human escalation
-
-The UI always shows confidence, evidence, proposed action, and affected sample values so a consultant can resolve an escalation in one glance.
-
-## Architecture
-
-```text
-CSV/XLSX files
-      |
-      v
-Ingestion -> schema profiling -> semantic mapping
-      |                         |
-      |                         +--> Ollama/Qwen (optional)
-      v
-Normalization -> deduplication -> validation
-      |
-      +---- high confidence --------------------+
-      |                                         |
-      +---- ambiguity/conflict -> human review  |
-                                                v
-                                      canonical employee dataset
-                                                |
-                                         mock target API
-                                                |
-                                  success / retry / rollback
-                                                |
-                                           audit log
-```
-
-The LLM reasons about meaning. Python performs deterministic transformations, validation, persistence, API calls, retries, and rollback. This separation reduces the blast radius of hallucinations.
-
-## Project structure
-
-```text
-app.py
-agent/
-  orchestrator.py
-  mapper.py
-  cleaner.py
-  deduplicator.py
-  validator.py
-  audit.py
-api/
-  mock_target.py
-data/
-  employees_a.csv
-  employees_b.xlsx
-  contacts.csv
-  demo_schema.json
-templates/
-  index.html
-  review.html
-  audit.html
-static/
-  app.js
-  style.css
-tests/
-  test_agent.py
-```
-
-## One-page write-up points
-
-**Approach:** profile all files, infer mappings using an LLM plus deterministic evidence, normalize safely, reconcile duplicates, validate against a typed target schema, escalate only material ambiguity, then push records independently to a mock API.
-
-**Escalation boundary:** do not ask a human for reversible/low-risk transformations. Do ask when a choice changes semantic meaning or could silently corrupt a business record. Mandatory-field failures are retried with bounded repairs before escalation.
-
-**Next:** persistent job orchestration, richer connector support, model evaluation set, learned mapping memory from consultant corrections, RBAC, encrypted secrets, production-grade idempotency keys, and connector-specific rollback semantics.
+- starting a migration
+- reviewing an escalated record
+- correcting/approving the record through the UI
+- pushing the final data to the mock target
+- viewing the migration result
+- viewing the audit trail

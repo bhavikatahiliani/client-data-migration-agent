@@ -23,7 +23,7 @@ def clean_date(v):
     if not s:
         return None
 
-    # ISO format: YYYY-MM-DD
+    # format: YYYY-MM-DD
     if re.match(r"^\d{4}-\d{2}-\d{2}$", s):
         try:
             dt = parser.parse(s, fuzzy=False)
@@ -40,7 +40,6 @@ def clean_date(v):
             return None
 
     # Numeric dates such as DD/MM/YYYY or MM/DD/YYYY
-    # Do NOT guess when both day and month are <= 12.
     match = re.match(r"^(\d{1,2})[/-](\d{1,2})[/-](\d{4})$", s)
 
     if match:
@@ -64,11 +63,8 @@ def clean_date(v):
             except Exception:
                 return None
 
-        # Both interpretations are possible.
-        # Never silently guess.
         return None
 
-    # Textual month formats are generally unambiguous:
     # "May 12, 1995", "14-Feb-1997", etc.
     try:
         dt = parser.parse(s, dayfirst=False, fuzzy=False)

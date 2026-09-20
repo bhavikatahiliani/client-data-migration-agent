@@ -1,1 +1,624 @@
-<!doctype html><html><head><title>Audit</title><link rel="stylesheet" href="/static/style.css"></head><body><main class="wrap"><header><h1>Audit trail {{m.id[:8]}}</h1><a href="/migration/{{m.id}}">← Back</a></header><section class="card timeline">{% for e in events %}<div><time>{{e.created_at}}</time><b>{{e.event_type}}</b><p>{{e.message}}</p><pre>{{e.payload}}</pre></div>{% endfor %}</section></main></body></html>
+<!doctype html>
+<html>
+
+<head>
+
+    <title>Audit Trail</title>
+
+    <link
+        rel="stylesheet"
+        href="/static/style.css"
+    >
+
+</head>
+
+
+<body>
+
+<main class="wrap">
+
+
+    <!-- Header -->
+
+    <header>
+
+        <div>
+
+            <h1>
+                Audit trail {{m.id[:8]}}
+            </h1>
+
+            <p class="muted">
+                A human-readable history of everything the migration agent did.
+            </p>
+
+        </div>
+
+
+        <a href="/migration/{{m.id}}">
+            ← Back
+        </a>
+
+    </header>
+
+
+
+    <!-- Summary -->
+
+    <section class="card audit-summary">
+
+        <div class="audit-summary-item">
+
+            <span>
+                Migration
+            </span>
+
+            <strong>
+                {{m.id[:8]}}
+            </strong>
+
+        </div>
+
+
+        <div class="audit-summary-item">
+
+            <span>
+                Status
+            </span>
+
+            <strong class="pill">
+                {{m.status|replace('_', ' ')|title}}
+            </strong>
+
+        </div>
+
+
+        <div class="audit-summary-item">
+
+            <span>
+                Recorded events
+            </span>
+
+            <strong>
+                {{events|length}}
+            </strong>
+
+        </div>
+
+    </section>
+
+
+
+    <!-- Audit timeline -->
+
+    <section class="card timeline">
+
+        {% for e in events %}
+
+        <article class="audit-event">
+
+            <div class="audit-marker"></div>
+
+
+            <div class="audit-content">
+
+
+                <!-- Timestamp -->
+
+                <time>
+                    {{e.created_at}}
+                </time>
+
+
+
+                <!-- Event title -->
+
+                <h3 class="audit-title">
+
+                    {% if e.event_type == 'migration_started' %}
+
+                        Migration started
+
+                    {% elif e.event_type == 'file_ingested' %}
+
+                        Source file loaded
+
+                    {% elif e.event_type == 'mapping_proposed' %}
+
+                        Field mapping proposed
+
+                    {% elif e.event_type == 'deduplication' %}
+
+                        Records reconciled
+
+                    {% elif e.event_type == 'validation_complete' %}
+
+                        Validation completed
+
+                    {% elif e.event_type == 'human_resolution' %}
+
+                        Human review completed
+
+                    {% elif e.event_type == 'human_resolution_error' %}
+
+                        Human review could not be completed
+
+                    {% elif e.event_type == 'mapping_corrected' %}
+
+                        Field mapping corrected
+
+                    {% elif e.event_type == 'mapping_correction_error' %}
+
+                        Field mapping could not be corrected
+
+                    {% elif e.event_type == 'target_push' %}
+
+                        Records pushed to target
+
+                    {% elif e.event_type == 'rollback' %}
+
+                        Target records rolled back
+
+                    {% else %}
+
+                        {{e.event_type|replace('_', ' ')|title}}
+
+                    {% endif %}
+
+                </h3>
+
+
+
+                <!-- Event description -->
+
+                <p class="audit-message">
+
+                    {{e.message}}
+
+                </p>
+
+
+
+                <!-- Human readable payload -->
+
+                <div class="audit-details">
+
+                    {% if e.payload %}
+
+                    <div
+                        class="raw-audit-payload"
+                        hidden
+                    >{{e.payload}}</div>
+
+                    <div class="audit-facts"></div>
+
+                    {% endif %}
+
+                </div>
+
+
+
+                <!-- Technical details -->
+
+                <details class="technical-evidence">
+
+                    <summary>
+                        Technical details
+                    </summary>
+
+                    <pre>{{e.payload}}</pre>
+
+                </details>
+
+
+            </div>
+
+        </article>
+
+
+        {% else %}
+
+        <div class="empty-state">
+
+            <div class="success-icon">
+                ✓
+            </div>
+
+            <h2>
+                No audit events yet
+            </h2>
+
+            <p class="muted">
+                The migration has not produced any recorded audit events.
+            </p>
+
+        </div>
+
+        {% endfor %}
+
+    </section>
+
+</main>
+
+
+
+<script>
+
+/*
+ * The backend already stores the original audit payload.
+ * This script only changes how that payload is displayed.
+ * It does not modify migration behaviour or audit data.
+ */
+
+
+const FIELD_LABELS = {
+
+    files: "Files",
+
+    rows: "Rows",
+
+    columns: "Columns",
+
+    engine: "Mapping engine",
+
+    source_rows: "Source rows",
+
+    canonical_rows: "Canonical rows",
+
+    escalations: "Escalations",
+
+    valid_records: "Valid records",
+
+    review_records: "Records needing review",
+
+    open_escalations: "Open review items",
+
+    escalation_id: "Review item",
+
+    record_id: "Record",
+
+    field: "Field",
+
+    action: "Action",
+
+    validation: "Validation",
+
+    source: "Source field",
+
+    target: "Target field",
+
+    records_updated: "Records updated",
+
+    success: "Successful pushes",
+
+    failed: "Failed pushes",
+
+    count: "Records affected"
+
+};
+
+
+
+function prettyKey(key) {
+
+    if (FIELD_LABELS[key]) {
+
+        return FIELD_LABELS[key];
+
+    }
+
+    return String(key)
+        .replace(/_/g, " ")
+        .replace(/\b\w/g, function(char) {
+            return char.toUpperCase();
+        });
+
+}
+
+
+
+function prettyValue(value) {
+
+    if (Array.isArray(value)) {
+
+        return value.join(", ");
+
+    }
+
+
+    if (value === true) {
+
+        return "Yes";
+
+    }
+
+
+    if (value === false) {
+
+        return "No";
+
+    }
+
+
+    if (
+        value === null ||
+        value === undefined ||
+        value === ""
+    ) {
+
+        return "—";
+
+    }
+
+
+    if (typeof value === "object") {
+
+        return JSON.stringify(
+            value,
+            null,
+            2
+        );
+
+    }
+
+
+    return String(value);
+
+}
+
+
+
+function addFact(container, label, value) {
+
+    const fact =
+        document.createElement("div");
+
+    fact.className =
+        "audit-fact";
+
+
+    const labelElement =
+        document.createElement("span");
+
+    labelElement.textContent =
+        label;
+
+
+    const valueElement =
+        document.createElement("strong");
+
+    valueElement.textContent =
+        prettyValue(value);
+
+
+    fact.appendChild(
+        labelElement
+    );
+
+    fact.appendChild(
+        valueElement
+    );
+
+
+    container.appendChild(
+        fact
+    );
+
+}
+
+
+
+function renderMapping(
+    container,
+    mapping
+) {
+
+    const wrapper =
+        document.createElement("div");
+
+    wrapper.className =
+        "audit-fact audit-fact-wide";
+
+
+    const heading =
+        document.createElement("span");
+
+    heading.textContent =
+        "Field mappings";
+
+
+    wrapper.appendChild(
+        heading
+    );
+
+
+    const list =
+        document.createElement("div");
+
+    list.className =
+        "mapping-list";
+
+
+    Object.entries(
+        mapping || {}
+    ).forEach(
+        function([source, info]) {
+
+            const row =
+                document.createElement("div");
+
+            row.className =
+                "mapping-row";
+
+
+            const sourceElement =
+                document.createElement("span");
+
+            sourceElement.textContent =
+                source;
+
+
+            const arrow =
+                document.createElement("b");
+
+            arrow.textContent =
+                "→";
+
+
+            const targetElement =
+                document.createElement("strong");
+
+
+            const target =
+                info &&
+                info.target
+                    ? info.target
+                    : "Needs review";
+
+
+            let confidence = "";
+
+
+            if (
+                info &&
+                info.confidence !== undefined &&
+                info.confidence !== null
+            ) {
+
+                confidence =
+                    " (" +
+                    Math.round(
+                        info.confidence * 100
+                    ) +
+                    "% confidence)";
+
+            }
+
+
+            targetElement.textContent =
+                target + confidence;
+
+
+            row.appendChild(
+                sourceElement
+            );
+
+            row.appendChild(
+                arrow
+            );
+
+            row.appendChild(
+                targetElement
+            );
+
+
+            list.appendChild(
+                row
+            );
+
+        }
+    );
+
+
+    wrapper.appendChild(
+        list
+    );
+
+
+    container.appendChild(
+        wrapper
+    );
+
+}
+
+
+
+document
+    .querySelectorAll(
+        ".audit-details"
+    )
+    .forEach(
+        function(details) {
+
+            const rawElement =
+                details.querySelector(
+                    ".raw-audit-payload"
+                );
+
+
+            const factsContainer =
+                details.querySelector(
+                    ".audit-facts"
+                );
+
+
+            if (!rawElement) {
+                return;
+            }
+
+
+            let payload;
+
+
+            try {
+
+                payload =
+                    JSON.parse(
+                        rawElement.textContent
+                    );
+
+            } catch (error) {
+
+                factsContainer.textContent =
+                    "Additional details are unavailable.";
+
+                return;
+
+            }
+
+
+            if (
+                !payload ||
+                typeof payload !== "object"
+            ) {
+
+                return;
+
+            }
+
+
+            Object.entries(
+                payload
+            ).forEach(
+                function([key, value]) {
+
+                    if (key === "mapping") {
+
+                        renderMapping(
+                            factsContainer,
+                            value
+                        );
+
+                        return;
+
+                    }
+
+
+                    addFact(
+                        factsContainer,
+                        prettyKey(key),
+                        value
+                    );
+
+                }
+            );
+
+        }
+    );
+
+</script>
+
+
+</body>
+
+</html>

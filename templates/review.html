@@ -1,1 +1,603 @@
-<!doctype html><html><head><title>Migration Review</title><link rel="stylesheet" href="/static/style.css"></head><body><main class="wrap"><header><div><h1>Migration {{m.id[:8]}}</h1><p>Status: <span class="pill">{{m.status}}</span></p></div><a href="/migration/{{m.id}}/audit">Audit log →</a></header><section class="grid"><div class="card stat"><b>{{m.total_source_rows}}</b><span>Source rows</span></div><div class="card stat"><b>{{m.canonical_rows}}</b><span>Canonical rows</span></div><div class="card stat"><b>{{esc|length}}</b><span>Open/reviewed items</span></div><div class="card stat"><b>{{m.success_count}}</b><span>Pushed successfully</span></div></section>{% if esc %}<section class="card"><h2>Human review</h2>{% for e in esc %}<div class="escalation"><div><span class="warning">⚠</span><b>{{e.title}}</b><p>{{e.reason}}</p><details><summary>Evidence</summary><pre>{{e.evidence}}</pre></details></div><form action="/migration/{{m.id}}/escalation/{{e.id}}" method="post"><select name="action"><option value="approve_as_is">Approve as-is</option><option value="keep_first">Keep first</option><option value="merge">Merge</option><option value="keep_separate">Keep separate</option><option value="reject">Reject</option></select><input name="correction" placeholder="Optional exact correction"><button class="primary">Resolve</button></form></div>{% endfor %}</section>{% endif %}<section class="card"><div class="toolbar"><h2>Target integration</h2><div><form class="inline" action="/migration/{{m.id}}/push" method="post"><button class="primary">Push to Target</button></form><form class="inline" action="/migration/{{m.id}}/retry" method="post"><button>Retry Failed</button></form><form class="inline" action="/migration/{{m.id}}/rollback" method="post"><button class="danger">Rollback</button></form></div></div><table><tr><th>Employee</th><th>Status</th><th>Attempts</th><th>Error</th></tr>{% for r in records %}<tr><td>{{r.employee_id}}</td><td>{{r.status}}</td><td>{{r.attempts}}</td><td>{{r.error or '—'}}</td></tr>{% endfor %}</table></section></main></body></html>
+<!doctype html>
+<html>
+
+<head>
+    <title>Migration Review</title>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+
+<body>
+    <main class="wrap">
+
+        <!-- Header -->
+        <header>
+            <div>
+                <h1>Migration {{m.id[:8]}}</h1>
+
+                <p>
+                    Status:
+                    <span class="pill">
+                        {{m.status|replace('_', ' ')|title}}
+                    </span>
+                </p>
+
+                <p class="muted">
+                    Review only the records the agent could not safely resolve on its own.
+                </p>
+            </div>
+
+            <a href="/migration/{{m.id}}/audit">Audit log →</a>
+        </header>
+
+
+        <!-- Migration summary -->
+        <section class="grid">
+
+            <div class="card stat">
+                <b>{{m.total_source_rows}}</b>
+                <span>Source rows</span>
+            </div>
+
+            <div class="card stat">
+                <b>{{m.canonical_rows}}</b>
+                <span>Canonical rows</span>
+            </div>
+
+            <div class="card stat">
+                <b>{{esc|length}}</b>
+                <span>Items needing review</span>
+            </div>
+
+            <div class="card stat">
+                <b>{{m.success_count}}</b>
+                <span>Pushed successfully</span>
+            </div>
+
+        </section>
+
+
+        <!-- Human review -->
+        {% if esc %}
+
+        <section class="card">
+
+            <div class="review-header">
+
+                <div>
+                    <h2>Human review</h2>
+
+                    <p class="muted">
+                        Review the issues below in order. Correct a value when
+                        the source data is recoverable; otherwise reject the record.
+                        Records are re-validated before they can be sent to the target.
+                    </p>
+                </div>
+
+                <span class="review-count">
+                    {{esc|length}} item{% if esc|length != 1 %}s{% endif %}
+                </span>
+
+            </div>
+
+
+            {% for e in esc %}
+
+            <div class="escalation">
+
+                <!-- Issue information -->
+                <div class="issue-content">
+
+                    <div class="issue-title">
+
+                        <span class="warning">⚠</span>
+
+                        <div>
+
+                            {% if e.kind == 'validation' %}
+
+                            <b>Validation issue</b>
+
+                            <span class="issue-subtitle">
+                                {% if e.evidence.record.full_name %}
+                                    {{e.evidence.record.full_name}}
+                                {% elif e.evidence.record.employee_id %}
+                                    Employee {{e.evidence.record.employee_id}}
+                                {% else %}
+                                    Employee record
+                                {% endif %}
+                            </span>
+
+                            {% else %}
+
+                            <b>{{e.title}}</b>
+
+                            {% endif %}
+
+                        </div>
+
+                    </div>
+
+
+                    <p class="issue-reason">
+
+                        {% if e.kind == 'validation' %}
+
+                        This employee record could not be validated against
+                        the target schema. Correct the value below and validate
+                        again, or reject the record.
+
+                        {% else %}
+
+                        {{e.reason}}
+
+                        {% endif %}
+
+                    </p>
+
+
+                    <!-- Validation errors -->
+                    {% if e.kind == 'validation' and e.evidence.errors %}
+
+                    <div class="error-list">
+
+                        {% for err in e.evidence.errors %}
+
+                        <div class="error-item">
+
+                            <span>⚠</span>
+
+                            <span>
+
+                                {% if 'invalid email' in err|lower %}
+
+                                    Invalid email address
+
+                                {% elif 'field required' in err|lower %}
+
+                                    Required field is missing
+
+                                {% elif 'value error' in err|lower %}
+
+                                    {{err|replace('Value error, ', '')}}
+
+                                {% else %}
+
+                                    {{err}}
+
+                                {% endif %}
+
+                            </span>
+
+                        </div>
+
+                        {% endfor %}
+
+                    </div>
+
+                    {% endif %}
+
+
+                    <!-- Record details -->
+                    {% if e.kind == 'validation' and e.evidence.record %}
+
+                    <div class="record-preview">
+
+                        <div>
+                            <span>Name</span>
+
+                            <strong>
+                                {{e.evidence.record.full_name or 'Missing'}}
+                            </strong>
+                        </div>
+
+
+                        <div>
+                            <span>Employee ID</span>
+
+                            <strong>
+                                {{e.evidence.record.employee_id or 'Missing'}}
+                            </strong>
+                        </div>
+
+
+                        <div>
+                            <span>Email</span>
+
+                            <strong>
+                                {{e.evidence.record.email or 'Missing'}}
+                            </strong>
+                        </div>
+
+                    </div>
+
+                    {% endif %}
+
+
+                    <!-- Technical evidence -->
+                    <details class="technical-evidence">
+
+                        <summary>
+                            Technical evidence
+                        </summary>
+
+                        <pre>{{e.evidence}}</pre>
+
+                    </details>
+
+                </div>
+
+
+                <!-- Actions -->
+                <div class="issue-actions">
+
+                    <form
+                        action="/migration/{{m.id}}/escalation/{{e.id}}"
+                        method="post"
+                    >
+
+                        {% if e.kind == 'validation' %}
+
+                        {% set errors_text = e.evidence.errors|join(' ')|lower %}
+
+
+                        <!-- Invalid email -->
+                        {% if 'invalid email' in errors_text %}
+
+                        <label for="correction-{{e.id}}">
+                            Correct email address
+                        </label>
+
+                        <input
+                            id="correction-{{e.id}}"
+                            name="correction"
+                            type="email"
+                            placeholder="name@company.com"
+                            required
+                        >
+
+                        <input
+                            type="hidden"
+                            name="correction_field"
+                            value="email"
+                        >
+
+
+                        <!-- Required field -->
+                        {% elif 'field required' in errors_text %}
+
+                        {% if not e.evidence.record.employee_id %}
+
+                        <label for="correction-{{e.id}}">
+                            Employee ID
+                        </label>
+
+                        <input
+                            id="correction-{{e.id}}"
+                            name="correction"
+                            placeholder="Enter employee ID"
+                            required
+                        >
+
+                        <input
+                            type="hidden"
+                            name="correction_field"
+                            value="employee_id"
+                        >
+
+                        {% elif not e.evidence.record.full_name %}
+
+                        <label for="correction-{{e.id}}">
+                            Full name
+                        </label>
+
+                        <input
+                            id="correction-{{e.id}}"
+                            name="correction"
+                            placeholder="Enter full name"
+                            required
+                        >
+
+                        <input
+                            type="hidden"
+                            name="correction_field"
+                            value="full_name"
+                        >
+
+                        {% elif not e.evidence.record.email %}
+
+                        <label for="correction-{{e.id}}">
+                            Email address
+                        </label>
+
+                        <input
+                            id="correction-{{e.id}}"
+                            name="correction"
+                            type="email"
+                            placeholder="name@company.com"
+                            required
+                        >
+
+                        <input
+                            type="hidden"
+                            name="correction_field"
+                            value="email"
+                        >
+
+                        {% else %}
+
+                        <label for="correction-{{e.id}}">
+                            Correct value
+                        </label>
+
+                        <input
+                            id="correction-{{e.id}}"
+                            name="correction"
+                            placeholder="Enter the correct value"
+                            required
+                        >
+
+                        <input
+                            type="hidden"
+                            name="correction_field"
+                            value="joining_date"
+                        >
+
+                        {% endif %}
+
+
+                        <!-- Other validation errors -->
+                        {% else %}
+
+                        <label for="correction-{{e.id}}">
+                            Correct value
+                        </label>
+
+                        <input
+                            id="correction-{{e.id}}"
+                            name="correction"
+                            placeholder="Enter the correct value"
+                            required
+                        >
+
+                        <input
+                            type="hidden"
+                            name="correction_field"
+                            value="joining_date"
+                        >
+
+                        {% endif %}
+
+
+                        <button
+                            class="primary full"
+                            name="action"
+                            value="correct"
+                        >
+                            Save correction & validate
+                        </button>
+
+                        <button
+                            class="link-button danger-text"
+                            name="action"
+                            value="reject"
+                        >
+                            Reject record
+                        </button>
+
+
+                        {% else %}
+
+                        <!-- Mapping / other escalation -->
+
+                        <label for="correction-{{e.id}}">
+                            Select correction
+                        </label>
+
+                        <select
+                            id="correction-{{e.id}}"
+                            name="correction"
+                        >
+
+                            {% for option in e.options %}
+
+                            <option value="{{option}}">
+                                {{option}}
+                            </option>
+
+                            {% endfor %}
+
+                        </select>
+
+                        <button
+                            class="primary full"
+                            name="action"
+                            value="correct"
+                        >
+                            Apply correction
+                        </button>
+
+                        <button
+                            class="link-button danger-text"
+                            name="action"
+                            value="reject"
+                        >
+                            Reject
+                        </button>
+
+                        {% endif %}
+
+                    </form>
+
+                </div>
+
+            </div>
+
+            {% endfor %}
+
+        </section>
+
+        {% else %}
+
+        <!-- No review items -->
+
+        <section class="card empty-state">
+
+            <div class="success-icon">
+                ✓
+            </div>
+
+            <h2>
+                No human review required
+            </h2>
+
+            <p>
+                All records passed the current mapping and validation checks.
+            </p>
+
+        </section>
+
+        {% endif %}
+
+
+        <!-- Target integration -->
+        <section class="card">
+
+            <div class="toolbar">
+
+                <div>
+
+                    <h2>
+                        Target integration
+                    </h2>
+
+                    <p class="muted">
+                        Send validated records to the target system,
+                        retry failed records, or roll back successful pushes.
+                    </p>
+
+                </div>
+
+
+                <div class="integration-actions">
+
+                    <form
+                        class="inline"
+                        action="/migration/{{m.id}}/push"
+                        method="post"
+                    >
+
+                        <button class="primary">
+                            Push to Target
+                        </button>
+
+                    </form>
+
+
+                    <form
+                        class="inline"
+                        action="/migration/{{m.id}}/retry"
+                        method="post"
+                    >
+
+                        <button>
+                            Retry Failed
+                        </button>
+
+                    </form>
+
+
+                    <form
+                        class="inline"
+                        action="/migration/{{m.id}}/rollback"
+                        method="post"
+                    >
+
+                        <button class="danger">
+                            Rollback
+                        </button>
+
+                    </form>
+
+                </div>
+
+            </div>
+
+
+            <!-- Target records -->
+            <div class="table-wrapper">
+
+                <table>
+
+                    <thead>
+
+                        <tr>
+                            <th>Employee</th>
+                            <th>Status</th>
+                            <th>Attempts</th>
+                            <th>Error</th>
+                        </tr>
+
+                    </thead>
+
+
+                    <tbody>
+
+                        {% for r in records %}
+
+                        <tr>
+
+                            <td>
+                                <strong>
+                                    {{r.employee_id or 'Missing'}}
+                                </strong>
+                            </td>
+
+
+                            <td>
+
+                                <span class="status-{{r.status}}">
+                                    {{r.status|replace('_', ' ')|title}}
+                                </span>
+
+                            </td>
+
+
+                            <td>
+                                {{r.attempts}}
+                            </td>
+
+
+                            <td>
+
+                                {% if r.error %}
+
+                                    {% if 'invalid email' in r.error|lower %}
+                                        Invalid email address
+                                    {% else %}
+                                        {{r.error}}
+                                    {% endif %}
+
+                                {% else %}
+
+                                    —
+
+                                {% endif %}
+
+                            </td>
+
+                        </tr>
+
+                        {% endfor %}
+
+                    </tbody>
+
+                </table>
+
+            </div>
+
+        </section>
+
+    </main>
+</body>
+
+</html>
